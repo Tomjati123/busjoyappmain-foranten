@@ -1,0 +1,257 @@
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Bus, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getApiBaseUrl } from "@/lib/api";
+import useAuth from "@/hooks/useAuth";
+import liff from "@line/liff";
+
+declare global {
+  interface Window {
+    liff?: any;
+  }
+}
+
+const LoginPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLineLoading, setIsLineLoading] = useState(false);
+  const apiUrl = getApiBaseUrl();
+  const LIFF_ID = import.meta.env.VITE_LINE_LIFF_ID;
+  const isValidLiffId = (value?: string) => {
+    if (!value) return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (trimmed === "replace_with_your_liff_id") return false;
+    return true;
+  };
+
+  const roleFromQuery = new URLSearchParams(location.search).get("role");
+  const isStaffLogin = roleFromQuery === "staff";
+
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("rememberedEmail");
+    if (rememberedEmail) {
+      setUsername(rememberedEmail);
+    }
+  }, []);
+
+  const handleLineLogin = async () => {
+    try {
+      setIsLineLoading(true);
+      setError("");
+
+      if (!isValidLiffId(LIFF_ID)) {
+        setError("ยังไม่ได้ตั้งค่า VITE_LINE_LIFF_ID");
+        return;
+      }
+
+      await liff.init({ liffId: LIFF_ID.trim() });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      const idToken = liff.getIDToken();
+      if (!idToken) {
+        setError("ไม่พบ LINE ID token");
+        return;
+      }
+
+      console.log("[LINE Login] idToken ready", { length: idToken.length, apiUrl });
+
+      const response = await fetch(`${apiUrl}/api/auth/line-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "เข้าสู่ระบบ LINE ไม่สำเร็จ");
+        return;
+      }
+
+      login(data);
+    } catch (err) {
+      console.error(err);
+      setError("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
+    } finally {
+      setIsLineLoading(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setError("");
+      setIsSubmitting(true);
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier: username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("LOGIN RESPONSE", data);
+
+      if (!response.ok) {
+        setError(data.message || "เข้าสู่ระบบไม่สำเร็จ");
+        return;
+      }
+
+      if (rememberMe && username) {
+        localStorage.setItem("rememberedEmail", username);
+      } else {
+        localStorage.removeItem("rememberedEmail"); // แก้ไข: ควรลบเมื่อไม่ได้เลือกจำฉันไว้
+      }
+
+      if (data.token && data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        // เรียกใช้ login ซึ่งจะทำการ navigate ไปยังหน้าตาม role ให้อัตโนมัติ
+        login(data);
+        return;
+      }
+
+      setError("ไม่สามารถเข้าสู่ระบบได้ โปรดลองอีกครั้ง");
+    } catch (error) {
+      setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-4xl grid md:grid-cols-2 gap-0 rounded-xl overflow-hidden shadow-lg">
+        {/* Left: System Identity */}
+        <div className="bg-secondary text-secondary-foreground p-8 md:p-12 flex flex-col justify-center items-center text-center">
+          <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mb-6">
+            <Bus className="w-10 h-10 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">ระบบจองตั๋วรถทัวร์ออนไลน์</h1>
+          <p className="text-sm opacity-80 mb-6">Online Bus Ticket Booking System</p>
+          <div className="w-16 h-0.5 bg-primary-foreground/30 mb-6" />
+          <p className="text-xs opacity-60">มหาวิทยาลัยราชภัฏมหาสารคาม</p>
+          <p className="text-xs opacity-60">คณะวิทยาศาสตร์และเทคโนโลยี</p>
+        </div>
+
+        {/* Right: Login Form */}
+        <div className="bg-card p-8 md:p-12">
+          <h2 className="text-xl font-bold text-foreground mb-1">
+            {isStaffLogin ? "เข้าสู่ระบบพนักงาน" : "เข้าสู่ระบบ"}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            {isStaffLogin
+              ? "กรอกอีเมลและรหัสผ่านพนักงานเพื่อตรวจสอบและสแกนตั๋ว"
+              : "กรอกอีเมลและรหัสผ่านเพื่อเข้าใช้งาน"}
+          </p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label htmlFor="username" className="text-foreground">อีเมล / ชื่อผู้ใช้</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="กรอกอีเมลหรือชื่อผู้ใช้"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="password" className="text-foreground">รหัสผ่าน</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="กรอกรหัสผ่าน"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-border"
+                />
+                จำฉันไว้
+              </label>
+              <a href="#" className="text-primary hover:underline">ลืมรหัสผ่าน?</a>
+            </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
+            </Button>
+
+            {!isStaffLogin && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-card text-muted-foreground">หรือ</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white border-none"
+                  size="lg"
+                  onClick={handleLineLogin}
+                  disabled={isLineLoading}
+                >
+                  {isLineLoading ? "กำลังเชื่อมต่อ..." : "เข้าสู่ระบบด้วย LINE"}
+                </Button>
+              </>
+            )}
+
+            <p className="text-center text-sm text-muted-foreground">
+              ยังไม่มีบัญชี?{" "}
+              <Link to="/register" className="text-primary font-medium hover:underline">สมัครสมาชิก</Link>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;
