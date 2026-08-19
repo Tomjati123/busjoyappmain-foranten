@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Route = {
   id: number;
@@ -36,7 +37,7 @@ const RouteManagement = () => {
   const fetchRoutes = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("http://localhost:5000/api/routes", { headers });
+      const res = await fetch(`${apiUrl}/api/routes`, { headers });
       const data = await res.json();
       setRoutes(Array.isArray(data) ? data : []);
     } catch {
@@ -77,8 +78,8 @@ const RouteManagement = () => {
       setIsSaving(true);
       setError("");
       const url = editRoute
-        ? `http://localhost:5000/api/routes/${editRoute.id}`
-        : "http://localhost:5000/api/routes";
+        ? `${apiUrl}/api/routes/${editRoute.id}`
+        : `${apiUrl}/api/routes`;
       const method = editRoute ? "PUT" : "POST";
       const res = await fetch(url, { method, headers, body: JSON.stringify(form) });
       const data = await res.json();
@@ -95,7 +96,7 @@ const RouteManagement = () => {
   const handleDelete = async (id: number) => {
     if (!confirm("ยืนยันการลบเส้นทางนี้?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/routes/${id}`, { method: "DELETE", headers });
+      const res = await fetch(`${apiUrl}/api/routes/${id}`, { method: "DELETE", headers });
       const data = await res.json();
       if (!res.ok) { alert(data.message); return; }
       fetchRoutes();

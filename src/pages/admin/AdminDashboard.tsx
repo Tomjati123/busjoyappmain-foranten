@@ -3,6 +3,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ticket, DollarSign, Armchair, Users } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Stats = {
   bookingsToday: number;
@@ -14,6 +15,7 @@ type Stats = {
 };
 
 const AdminDashboard = () => {
+  const apiUrl = getApiBaseUrl();
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,7 +23,7 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/admin/stats", {
+        const res = await fetch(`${apiUrl}/api/admin/stats`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();

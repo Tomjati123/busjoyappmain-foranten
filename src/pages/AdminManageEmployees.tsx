@@ -1,25 +1,29 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Shield, Loader2, Pencil, Trash2, Search } from "lucide-react";
+import { UserPlus, Shield, Loader2, Pencil, Trash2, Search, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AdminLayout from "@/components/AdminLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Employee = {
   id: number;
-  full_name: string;
+  full_name?: string;
+  fullName?: string;
   username: string;
   email: string;
   role: string;
-  is_active: boolean;
-  last_login: string | null;
-  created_at: string;
+  is_active?: boolean;
+  isActive?: boolean;
+  last_login?: string | null;
+  created_at?: string;
 };
 
 const AdminManageEmployees = () => {
@@ -27,7 +31,7 @@ const AdminManageEmployees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
-    full_name: "",
+    fullName: "",
     username: "",
     email: "",
     role: "staff",
@@ -39,12 +43,21 @@ const AdminManageEmployees = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
 
-  const filteredEmployees = employees.filter((emp) =>
-    emp.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    emp.email.toLowerCase().includes(search.toLowerCase()) ||
-    emp.username.toLowerCase().includes(search.toLowerCase()) ||
-    emp.role.toLowerCase().includes(search.toLowerCase())
-  );
+  const apiUrl = getApiBaseUrl() || "http://localhost:5000";
+
+  // ดึงชื่อจริงไม่ว่าจะอยู่ในรูป full_name หรือ fullName
+  const getName = (emp: Employee) => emp.fullName || emp.full_name || "ไม่ระบุชื่อ";
+  const getIsActive = (emp: Employee) => emp.isActive !== undefined ? emp.isActive : (emp.is_active !== undefined ? emp.is_active : true);
+
+  const filteredEmployees = employees.filter((emp) => {
+    const name = getName(emp).toLowerCase();
+    const email = (emp.email || "").toLowerCase();
+    const username = (emp.username || "").toLowerCase();
+    const role = (emp.role || "").toLowerCase();
+    const query = search.toLowerCase();
+
+    return name.includes(query) || email.includes(query) || username.includes(query) || role.includes(query);
+  });
 
   const fetchEmployees = async () => {
     try {
@@ -54,29 +67,32 @@ const AdminManageEmployees = () => {
         return;
       }
       
-      const response = await fetch("http://localhost:5000/api/employees", {
+      const response = await fetch(`${apiUrl}/api/employees`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (response.ok) {
         const data = await response.json();
-        setEmployees(data);
-        setError(null); // Clear any previous errors
+        setEmployees(Array.isArray(data) ? data : data.employees || []);
+        setError(null);
       } else {
         const data = await response.json();
-        setError(data.message || "ไม่สามารถดึงข้อมูลพนักงานได้");
+        setError(data.message || data.error || "ไม่สามารถดึงข้อมูลพนักงานได้");
       }
     } catch (err) {
       console.error("Fetch error:", err);
-      setError("ไม่สามารถดึงข้อมูลพนักงานได้");
+      setError("ไม่สามารถดึงข้อมูลพนักงานได้ โปรดตรวจสอบการเชื่อมต่อเซิร์ฟเวอร์");
     }
   };
 
-  useEffect(() => { fetchEmployees(); }, []);
+  useEffect(() => { 
+    fetchEmployees(); 
+  }, []);
 
   const openAddEmployee = () => {
     setEditEmployee(null);
     setForm({
-      full_name: "",
+      fullName: "",
       username: "",
       email: "",
       role: "staff",
@@ -90,18 +106,17 @@ const AdminManageEmployees = () => {
   const openEditEmployee = (employee: Employee) => {
     setEditEmployee(employee);
     setForm({
-      full_name: employee.full_name,
-      username: employee.username,
-      email: employee.email,
-      role: employee.role,
-      password: "", // Password is not pre-filled for security reasons
-      is_active: employee.is_active,
+      fullName: getName(employee),
+      username: employee.username || "",
+      email: employee.email || "",
+      role: employee.role || "staff",
+      password: "",
+      is_active: getIsActive(employee),
     });
     setError(null);
     setIsDialogOpen(true);
   };
 
-  // This function will now perform a hard delete
   const handleDelete = async (id: number) => {
     if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานคนนี้อย่างถาวร? การดำเนินการนี้ไม่สามารถย้อนกลับได้")) return;
 
@@ -112,14 +127,14 @@ const AdminManageEmployees = () => {
         setError("ไม่มี Token สำหรับการยืนยันตัวตน");
         return;
       }
-      // Check if the user is trying to deactivate their own account
+
       const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
       if (currentUser.id === id) {
         setError("ไม่สามารถลบบัญชีที่คุณกำลังใช้งานอยู่ได้");
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/employees/${id}`, {
+      const response = await fetch(`${apiUrl}/api/employees/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -129,10 +144,10 @@ const AdminManageEmployees = () => {
         fetchEmployees();
       } else {
         const data = await response.json();
-        setError(data.message || "ไม่สามารถลบข้อมูลพนักงานได้");
+        setError(data.message || data.error || "ไม่สามารถลบข้อมูลพนักงานได้");
       }
     } catch (err) {
-      console.error("Toggle status error:", err);
+      console.error("Delete employee error:", err);
       setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     }
   };
@@ -140,7 +155,7 @@ const AdminManageEmployees = () => {
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.full_name || !form.username || !form.email || !form.role) {
+    if (!form.fullName || !form.username || !form.email || !form.role) {
       setError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
       return;
     }
@@ -160,16 +175,25 @@ const AdminManageEmployees = () => {
         return;
       }
 
-      const method = editEmployee ? "PUT" : "POST"; // กำหนด method ให้ถูกต้อง
-      const url = editEmployee ? `http://localhost:5000/api/employees/${editEmployee.id}` : "http://localhost:5000/api/employees";
+      const method = editEmployee ? "PUT" : "POST";
+      const url = editEmployee ? `${apiUrl}/api/employees/${editEmployee.id}` : `${apiUrl}/api/employees`;
 
-      const payload: any = { ...form };
-      if (editEmployee && !form.password) { // Don't send empty password on edit if not changed
-        delete payload.password;
+      const payload: any = { 
+        fullName: form.fullName,
+        full_name: form.fullName, // แนบไปทั้งสองแบบรองรับทุกรูปแบบ Controller
+        username: form.username,
+        email: form.email,
+        role: form.role,
+        is_active: form.is_active,
+        isActive: form.is_active
+      };
+
+      if (form.password) {
+        payload.password = form.password;
       }
 
       const response = await fetch(url, {
-        method: method, // ใช้ method ที่กำหนดไว้
+        method: method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -180,35 +204,38 @@ const AdminManageEmployees = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "ไม่สามารถเพิ่มพนักงานได้");
+        setError(data.message || data.error || "บันทึกข้อมูลพนักงานไม่สำเร็จ");
         return;
       }
 
-      alert(editEmployee ? "แก้ไขข้อมูลพนักงานสำเร็จ" : "เพิ่มพนักงานสำเร็จแล้ว"); // ใช้ alert ชั่วคราว
-      setForm({
-        full_name: "", username: "", email: "", role: "staff", password: "", is_active: true,
-      });
+      alert(editEmployee ? "แก้ไขข้อมูลพนักงานสำเร็จ" : "เพิ่มพนักงานสำเร็จแล้ว");
       setIsDialogOpen(false);
       fetchEmployees();
     } catch (err) {
       setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-    } finally { // Always reset saving state
+    } finally {
       setIsSaving(false);
     }
   };
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">จัดการพนักงาน</h1>
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <Shield className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">จัดการพนักงาน</h1>
+              <p className="text-xs text-muted-foreground">เพิ่ม แก้ไข หรือระงับสิทธิ์บัญชีผู้ใช้งานระบบสแกนตั๋ว</p>
+            </div>
           </div>
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openAddEmployee}>
-                <UserPlus className="w-4 h-4 mr-2" /> เพิ่มพนักงานใหม่
+              <Button onClick={openAddEmployee} className="gap-2">
+                <UserPlus className="w-4 h-4" /> เพิ่มพนักงานใหม่
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
@@ -218,38 +245,70 @@ const AdminManageEmployees = () => {
                   {editEmployee ? "แก้ไขรายละเอียดของพนักงานในระบบ" : "กรอกข้อมูลเพื่อเพิ่มพนักงานใหม่เข้าสู่ระบบ"}
                 </DialogDescription>
               </DialogHeader>
+              
               <form onSubmit={handleSaveEmployee} className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">ชื่อ-นามสกุล</Label>
-                  <Input id="fullName" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required placeholder="สมชาย ใจดี" />
+                  <Input 
+                    id="fullName" 
+                    value={form.fullName} 
+                    onChange={(e) => setForm({ ...form, fullName: e.target.value })} 
+                    required 
+                    placeholder="สมชาย ใจดี" 
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required placeholder="staff_01" />
+                  <Input 
+                    id="username" 
+                    value={form.username} 
+                    onChange={(e) => setForm({ ...form, username: e.target.value })} 
+                    required 
+                    placeholder="staff_01" 
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="email">อีเมล</Label>
-                  <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required placeholder="staff@busjoy.com" />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={form.email} 
+                    onChange={(e) => setForm({ ...form, email: e.target.value })} 
+                    required 
+                    placeholder="staff@busjoy.com" 
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="role">บทบาท</Label>
                   <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="staff">Staff (พนักงาน)</SelectItem>
+                      <SelectItem value="staff">Staff (พนักงานตรวจตั๋ว)</SelectItem>
                       <SelectItem value="admin">Admin (ผู้ดูแลระบบ)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {!editEmployee && ( // Password is required only for new employees
-                  <div className="space-y-2">
-                    <Label htmlFor="password">รหัสผ่าน</Label>
-                    <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required={!editEmployee} placeholder="••••••••" />
-                  </div>
-                )}
-                {editEmployee && ( // Allow changing active status for existing employees
-                  <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="is_active">สถานะการใช้งาน</Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">
+                    รหัสผ่าน {editEmployee && <span className="text-xs text-muted-foreground font-normal">(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)</span>}
+                  </Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    value={form.password} 
+                    onChange={(e) => setForm({ ...form, password: e.target.value })} 
+                    required={!editEmployee} 
+                    placeholder="••••••••" 
+                  />
+                </div>
+
+                {editEmployee && (
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/40">
+                    <Label htmlFor="is_active" className="cursor-pointer">เปิดใช้งานบัญชีนี้</Label>
                     <Switch
                       id="is_active"
                       checked={form.is_active}
@@ -257,8 +316,10 @@ const AdminManageEmployees = () => {
                     />
                   </div>
                 )}
-                {error && <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isSaving}>
+
+                {error && <p className="text-xs text-destructive bg-destructive/10 p-2.5 rounded-md font-medium">{error}</p>}
+
+                <Button type="submit" className="w-full mt-2" disabled={isSaving}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : (editEmployee ? "บันทึกการแก้ไข" : "เพิ่มพนักงาน")}
                 </Button>
               </form>
@@ -266,63 +327,87 @@ const AdminManageEmployees = () => {
           </Dialog>
         </div>
 
-        <Card>
+        {/* ตารางแสดงรายชื่อพนักงาน */}
+        <Card className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-4">
               <div className="relative flex-1 max-w-sm">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input 
-                  placeholder="ค้นหาพนักงาน..." 
+                  placeholder="ค้นหาชื่อ, username, อีเมล..." 
                   className="pl-9" 
                   value={search} 
                   onChange={(e) => setSearch(e.target.value)} 
                 />
               </div>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ชื่อ-นามสกุล / Email</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>บทบาท</TableHead>
-                  <TableHead>เข้าใช้งานล่าสุด</TableHead>
-                  <TableHead className="text-right">จัดการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEmployees.map((emp: any) => (
-                  <TableRow key={emp.id}>
-                    <TableCell className={!emp.is_active ? "text-muted-foreground" : ""}>
-                      <div>
-                        <p className="font-medium">{emp.full_name}</p>
-                        <p className="text-xs text-muted-foreground">{emp.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{emp.username}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-[10px] uppercase font-bold ${emp.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600'} ${!emp.is_active ? "opacity-50" : ""}`}>
-                        {emp.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {emp.last_login || "ยังไม่เคยเข้าใช้"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEditEmployee(emp)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(emp.id)} title="ลบพนักงาน">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ชื่อ-นามสกุล / อีเมล</TableHead>
+                    <TableHead>Username</TableHead>
+                    <TableHead>บทบาท</TableHead>
+                    <TableHead>สถานะ</TableHead>
+                    <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredEmployees.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        ไม่พบข้อมูลพนักงาน
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredEmployees.map((emp) => {
+                      const isActive = getIsActive(emp);
+                      return (
+                        <TableRow key={emp.id} className={!isActive ? "bg-muted/30 opacity-75" : ""}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-foreground">{getName(emp)}</p>
+                              <p className="text-xs text-muted-foreground">{emp.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{emp.username}</TableCell>
+                          <TableCell>
+                            <Badge variant={emp.role === 'admin' ? 'default' : 'secondary'} className="uppercase text-[10px]">
+                              {emp.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {isActive ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> ใช้งานอยู่
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
+                                <XCircle className="w-3.5 h-3.5" /> ถูกปิดใช้งาน
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEditEmployee(emp)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(emp.id)} title="ลบพนักงาน">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
     </AdminLayout>
   );
 };
+
 export default AdminManageEmployees;

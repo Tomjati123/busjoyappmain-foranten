@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Passenger = {
   id: number;
@@ -21,6 +22,7 @@ type Passenger = {
 };
 
 const PassengerManagement = () => {
+  const apiUrl = getApiBaseUrl();
   const [search, setSearch] = useState("");
   const [passengers, setPassengers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +59,7 @@ const PassengerManagement = () => {
 
       console.log("Fetching passengers with token:", token); // Log the token being sent
       const response = await fetch(
-        "http://localhost:5000/api/passengers",
+        `${apiUrl}/api/passengers`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -134,8 +136,8 @@ const PassengerManagement = () => {
 
       const method = editPassenger ? "PUT" : "POST";
       const url = editPassenger
-        ? `http://localhost:5000/api/passengers/${editPassenger.id}`
-        : "http://localhost:5000/api/passengers";
+        ? `${apiUrl}/api/passengers/${editPassenger.id}`
+        : `${apiUrl}/api/passengers`;
 
       const payload: any = {
         full_name: form.full_name,
@@ -181,7 +183,7 @@ const PassengerManagement = () => {
       const token = localStorage.getItem("token");
       if (!token) { alert("ไม่มี Token สำหรับการยืนยันตัวตน"); return; }
 
-      const res = await fetch(`http://localhost:5000/api/passengers/${id}/status`, {
+      const res = await fetch(`${apiUrl}/api/passengers/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -208,7 +210,7 @@ const PassengerManagement = () => {
       const token = localStorage.getItem("token");
       if (!token) { alert("ไม่มี Token สำหรับการยืนยันตัวตน"); return; }
 
-      const res = await fetch(`http://localhost:5000/api/passengers/${id}/reset-password`, {
+      const res = await fetch(`${apiUrl}/api/passengers/${id}/reset-password`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getApiBaseUrl } from "@/lib/api";
 
 const LINE_OA_URL = "https://lin.ee/Vfy8fjf";
 
@@ -13,14 +14,17 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
   const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const apiUrl = getApiBaseUrl() || "http://localhost:5000";
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,57 +34,53 @@ const RegisterPage = () => {
       return;
     }
 
-    const passengerProfile = {
-      username,
-      fullName,
-      email,
-      gender,
-      address,
-      age,
-    };
-
     try {
       setError("");
-      const response = await fetch("http://localhost:5000/api/register", {
+      setIsSubmitting(true);
+
+      // 📍 [แก้ไข 1] ยิง API ไปที่ Endpoint /api/auth/register ของ Backend
+      const response = await fetch(`${apiUrl}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        // 📍 [แก้ไข 2] ส่ง Payload ตามที่ authController.js รับ (fullName, email, password, phone)
         body: JSON.stringify({
-          ...passengerProfile,
+          fullName,
+          email,
           password,
+          phone,
         }),
       });
 
       const data = await response.json();
 
-      console.log("REGISTER RESPONSE:", data);
-      console.log("STATUS:", response.status);
-
       if (!response.ok) {
-        setError(data.message || "สมัครสมาชิกไม่สำเร็จ");
+        setError(data.error || data.message || "สมัครสมาชิกไม่สำเร็จ");
         return;
       }
 
-      // backend now returns `user` (migrated to users table)
-      localStorage.setItem("passengerProfile", JSON.stringify(data.user || data.passenger || passengerProfile));
-      // แก้ไขการเก็บข้อมูลให้ตรงกับที่ระบบ Auth และหน้าตั๋วต้องการ
-      const userData = data.user || data.passenger || { ...passengerProfile, role: 'passenger' };
+      // บันทึกข้อมูลโปรไฟล์ผู้ใช้ลง LocalStorage
+      const userData = data.user || { fullName, email, phone, role: 'passenger' };
       localStorage.setItem("user", JSON.stringify(userData));
+      
       if (data.token) {
         localStorage.setItem("token", data.token);
       }
 
       window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
-      navigate("/passenger/tickets");
+      navigate("/login");
     } catch (error) {
       setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-4xl grid md:grid-cols-2 gap-0 rounded-xl overflow-hidden shadow-lg">
+        {/* ฝั่งซ้าย: ข้อมูลระบบ */}
         <div className="bg-secondary text-secondary-foreground p-8 md:p-12 flex flex-col justify-center items-center text-center">
           <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mb-6">
             <Bus className="w-10 h-10 text-primary-foreground" />
@@ -91,6 +91,7 @@ const RegisterPage = () => {
           <p className="text-xs opacity-60">Online Bus Ticket Booking System</p>
         </div>
 
+        {/* ฝั่งขวา: ฟอร์มสมัครสมาชิก */}
         <div className="bg-card p-8 md:p-12">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
@@ -115,18 +116,6 @@ const RegisterPage = () => {
               />
             </div>
 
-            <div>
-              <Label htmlFor="username" className="text-foreground">ชื่อผู้ใช้ (username)</Label>
-              <Input
-                id="username"
-                placeholder="ชื่อผู้ใช้สำหรับเข้าสู่ระบบ"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="mt-1"
-                required
-              />
-            </div>
-
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="email" className="text-foreground">อีเมล</Label>
@@ -141,7 +130,22 @@ const RegisterPage = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="age" className="text-foreground">อายุ</Label>
+                <Label htmlFor="phone" className="text-foreground">เบอร์โทรศัพท์</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="0812345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="age" className="text-foreground">อายุ (ไม่บังคับ)</Label>
                 <Input
                   id="age"
                   type="number"
@@ -151,34 +155,31 @@ const RegisterPage = () => {
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   className="mt-1"
-                  required
                 />
+              </div>
+              <div>
+                <Label htmlFor="gender" className="text-foreground">เพศ (ไม่บังคับ)</Label>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger id="gender" className="mt-1">
+                    <SelectValue placeholder="เลือกเพศ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">ชาย</SelectItem>
+                    <SelectItem value="female">หญิง</SelectItem>
+                    <SelectItem value="other">อื่น ๆ</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div>
-              <Label htmlFor="gender" className="text-foreground">เพศ</Label>
-              <Select value={gender} onValueChange={setGender} required>
-                <SelectTrigger id="gender" className="mt-1">
-                  <SelectValue placeholder="เลือกเพศ" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">ชาย</SelectItem>
-                  <SelectItem value="female">หญิง</SelectItem>
-                  <SelectItem value="other">อื่น ๆ</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="address" className="text-foreground">ที่อยู่</Label>
+              <Label htmlFor="address" className="text-foreground">ที่อยู่ (ไม่บังคับ)</Label>
               <Input
                 id="address"
                 placeholder="กรอกที่อยู่"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="mt-1"
-                required
               />
             </div>
 
@@ -198,7 +199,6 @@ const RegisterPage = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -220,7 +220,6 @@ const RegisterPage = () => {
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    aria-label={showConfirmPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -228,10 +227,10 @@ const RegisterPage = () => {
               </div>
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive font-medium">{error}</p>}
 
-            <Button type="submit" className="w-full" size="lg">
-              สมัครสมาชิก
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? "กำลังสมัครสมาชิก..." : "สมัครสมาชิก"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">

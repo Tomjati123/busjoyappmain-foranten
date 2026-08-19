@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 export type AppRole = "admin" | "staff" | "passenger";
 type User = { id?: number; username?: string; role?: string; [key: string]: any } | null;
 
+
 export const setAuth = (payload: { token?: string; user?: User } | any) => {
   if (payload?.token) localStorage.setItem("token", payload.token);
   const u = payload?.user || payload?.admin || payload?.employee || payload?.passenger || null;
@@ -10,7 +11,9 @@ export const setAuth = (payload: { token?: string; user?: User } | any) => {
 };
 
 export const getToken = (): string | null => {
-  return localStorage.getItem("token");
+  const token = localStorage.getItem("token");
+  if (!token || token === "undefined" || token === "null" || token === '""') return null;
+  return token;
 };
 
 export const getUser = (): User => {
@@ -22,7 +25,7 @@ export const getUser = (): User => {
   }
 };
 
-export const isAuthenticated = (): boolean => !!getToken() || !!getUser();
+export const isAuthenticated = (): boolean => !!getToken() && !!getUser();
 
 export const getUserRole = (user: User = getUser()): AppRole | null => {
   if (!user) return null;

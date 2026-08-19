@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from "@/components/AdminLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { THAI_PROVINCES } from "@/lib/thaiProvinces";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Trip = {
   id: number;
@@ -46,7 +47,7 @@ const ScheduleManagement = () => {
   const fetchTrips = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("http://localhost:5000/api/trips", { headers });
+      const res = await fetch(`${apiUrl}/api/trips`, { headers });
       const data = await res.json();
       setTrips(Array.isArray(data) ? data : []);
     } catch {
@@ -86,7 +87,7 @@ const ScheduleManagement = () => {
     try {
       setIsSaving(true);
       setError("");
-      const url = editTrip ? `http://localhost:5000/api/trips/${editTrip.id}` : "http://localhost:5000/api/trips";
+      const url = editTrip ? `${apiUrl}/api/trips/${editTrip.id}` : `${apiUrl}/api/trips`;
       const method = editTrip ? "PUT" : "POST";
       const res = await fetch(url, { method, headers, body: JSON.stringify({
         ...form, price: Number(form.price), total_seats: Number(form.total_seats)
@@ -104,7 +105,7 @@ const ScheduleManagement = () => {
 
   const handleDelete = async (id: number) => {
     if (!confirm("ยืนยันการลบเที่ยวรถนี้?")) return;
-    const res = await fetch(`http://localhost:5000/api/trips/${id}`, { method: "DELETE", headers });
+    const res = await fetch(`${apiUrl}/api/trips/${id}`, { method: "DELETE", headers });
     const data = await res.json();
     if (!res.ok) { alert(data.message); return; }
     fetchTrips();

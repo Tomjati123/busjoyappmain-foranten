@@ -19,14 +19,16 @@ const LoginPage = () => {
   const location = useLocation();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(""); // ใช้รับค่า อีเมล
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLineLoading, setIsLineLoading] = useState(false);
-  const apiUrl = getApiBaseUrl();
+  
+  const apiUrl = getApiBaseUrl() || "http://localhost:5000";
   const LIFF_ID = import.meta.env.VITE_LINE_LIFF_ID;
+
   const isValidLiffId = (value?: string) => {
     if (!value) return false;
     const trimmed = value.trim();
@@ -68,8 +70,6 @@ const LoginPage = () => {
         return;
       }
 
-      console.log("[LINE Login] idToken ready", { length: idToken.length, apiUrl });
-
       const response = await fetch(`${apiUrl}/api/auth/line-login`, {
         method: "POST",
         headers: {
@@ -102,34 +102,36 @@ const LoginPage = () => {
     try {
       setError("");
       setIsSubmitting(true);
-      const response = await fetch("http://localhost:5000/api/login", {
+
+      // 📍 [แก้ไข 1] เปลี่ยน URL ให้ตรงกับ Backend (/api/auth/login)
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        // 📍 [แก้ไข 2] ส่ง field 'email' แทน 'identifier' ให้ตรงกับ authController.js
         body: JSON.stringify({
-          identifier: username,
-          password,
+          email: username,
+          password: password,
         }),
       });
 
       const data = await response.json();
-      console.log("LOGIN RESPONSE", data);
 
       if (!response.ok) {
-        setError(data.message || "เข้าสู่ระบบไม่สำเร็จ");
+        setError(data.message || data.error || "เข้าสู่ระบบไม่สำเร็จ");
         return;
       }
 
       if (rememberMe && username) {
         localStorage.setItem("rememberedEmail", username);
       } else {
-        localStorage.removeItem("rememberedEmail"); // แก้ไข: ควรลบเมื่อไม่ได้เลือกจำฉันไว้
+        localStorage.removeItem("rememberedEmail");
       }
 
       if (data.token && data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
-        // เรียกใช้ login ซึ่งจะทำการ navigate ไปยังหน้าตาม role ให้อัตโนมัติ
+        localStorage.setItem("token", data.token); // แนะนำบันทึก JWT Token ไว้ใช้งานต่อ
         login(data);
         return;
       }
@@ -170,11 +172,11 @@ const LoginPage = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <Label htmlFor="username" className="text-foreground">อีเมล / ชื่อผู้ใช้</Label>
+              <Label htmlFor="username" className="text-foreground">อีเมล</Label>
               <Input
                 id="username"
-                type="text"
-                placeholder="กรอกอีเมลหรือชื่อผู้ใช้"
+                type="email"
+                placeholder="example@email.com"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="mt-1"
@@ -203,7 +205,7 @@ const LoginPage = () => {
             </div>
 
             <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-muted-foreground">
+              <label className="flex items-center gap-2 text-muted-foreground cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -215,7 +217,7 @@ const LoginPage = () => {
               <a href="#" className="text-primary hover:underline">ลืมรหัสผ่าน?</a>
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive font-medium">{error}</p>}
 
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
               {isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}

@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getDefaultPathForUser, getUser, getUserRole } from "@/hooks/useAuth";
+import { getDefaultPathForUser, getToken, getUser, getUserRole } from "@/hooks/useAuth";
 import type { AppRole } from "@/hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -33,9 +33,10 @@ const queryClient = new QueryClient();
 
 const RequireRole = ({ allow, children }: { allow: AppRole[]; children: ReactElement }) => {
   const user = getUser();
+  const token = getToken();
   const role = getUserRole(user);
 
-  if (!user) {
+  if (!user || !token) {
     return <Navigate to="/login" replace />;
   }
 
@@ -48,7 +49,8 @@ const RequireRole = ({ allow, children }: { allow: AppRole[]; children: ReactEle
 
 const LoginRoute = () => {
   const user = getUser();
-  return user ? <Navigate to={getDefaultPathForUser(user)} replace /> : <LoginPage />;
+  const token = getToken();
+  return (user && token) ? <Navigate to={getDefaultPathForUser(user)} replace /> : <LoginPage />;
 };
 
 const App = () => (

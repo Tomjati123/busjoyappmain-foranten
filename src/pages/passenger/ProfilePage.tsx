@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, MapPin, Calendar, ArrowLeft, Save, LogOut, MessageCircle, Camera } from "lucide-react";
+import { User, ArrowLeft, Save, LogOut, MessageCircle, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,35 +10,89 @@ import { getApiBaseUrl } from "@/lib/api";
 import { getUser, logout } from "@/hooks/useAuth";
 import liff from "@line/liff";
 
-const apiUrl = getApiBaseUrl();
+const apiUrl = getApiBaseUrl() || "http://localhost:5000";
 const LIFF_ID = import.meta.env.VITE_LINE_LIFF_ID;
+const LIFF_REDIRECT_URI = import.meta.env.VITE_LINE_LIFF_REDIRECT_URI?.trim();
+
 const isValidLiffId = (value?: string) => {
   if (!value) return false;
   const trimmed = value.trim();
-  if (!trimmed) return false;
-  if (trimmed === "replace_with_your_liff_id") return false;
+  if (!trimmed || trimmed === "replace_with_your_liff_id") return false;
   return true;
+};
+
+const getLiffRedirectUri = () => {
+  if (LIFF_REDIRECT_URI) return LIFF_REDIRECT_URI;
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/passenger/profile`;
+  }
+  return "https://bootleg-duration-helpful.ngrok-free.dev/passenger/profile";
 };
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liffInitPromiseRef = useRef<Promise<boolean> | null>(null);
+
   const [user, setUser] = useState<any>(getUser());
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const [form, setForm] = useState({
-    full_name: user?.full_name || "",
-    email: user?.email || "",
-    gender: user?.gender || "",
-    address: user?.address || "",
-    age: user?.age || 0,
-    picture_url: user?.picture_url || "",
+    full_name: "",
+    email: "",
+    gender: "male",
+    address: "",
+    age: 0,
+    picture_url: "",
   });
 
+  // 1. ดึงข้อมูลโปรไฟล์ล่าสุดจาก Backend เมื่อเริ่มโหลดหน้า
+  useEffect(() => {
+    const fetchLatestProfile = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        setIsLoadingProfile(true);
+        const res = await fetch(`${apiUrl}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const profileData = data.user || data;
+          setUser(profileData);
+          setForm({
+            full_name: profileData.full_name || profileData.fullName || "",
+            email: profileData.email || "",
+            gender: profileData.gender || "male",
+            address: profileData.address || "",
+            age: profileData.age || 0,
+            picture_url: profileData.picture_url || profileData.pictureUrl || profileData.avatar || "",
+          });
+          // Sync กลับลง LocalStorage
+          localStorage.setItem("user", JSON.stringify(profileData));
+        } else if (res.status === 401 || res.status === 403) {
+          logout("/login");
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchLatestProfile();
+  }, [navigate]);
+
+  // Handle เปลี่ยนไฟล์รูป
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -46,60 +100,56 @@ const ProfilePage = () => {
         setError("ขนาดรูปภาพต้องไม่เกิน 2MB");
         return;
       }
+      setError("");
       const reader = new FileReader();
       reader.onloadend = () => {
-        setForm({ ...form, picture_url: reader.result as string });
+        setForm((prev) => ({ ...prev, picture_url: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
   };
 
+  // 🌟 ฟังก์ชันส่งข้อมูล LINE ID ไปยืนยันตัวตนที่ Backend
   const linkLineToBackend = async (lineUserId: string, pictureUrl: string | null = null) => {
     try {
       const token = localStorage.getItem("token");
-      console.log("[LINE Link] payload ready", {
-        lineUserId,
-        pictureUrl,
-        apiUrl,
-      });
-      const response = await fetch(
-        "http://localhost:5000/api/users/profile/link-line",
-        {
+
+      if (!token) {
+        setError("ไม่พบการเข้าสู่ระบบ (Token หาย) กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+        return false;
+      }
+
+      const response = await fetch(`${apiUrl}/api/users/profile/link-line`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           line_user_id: lineUserId,
-          picture_url: pictureUrl
+          picture_url: pictureUrl,
         }),
       });
 
       const data = await response.json();
+
       if (response.ok) {
         setSuccess("✅ เชื่อมต่อบัญชี LINE เรียบร้อยแล้ว");
-        const updatedUser = { ...user, ...data.user };
+        const updatedUser = { ...user, ...(data.user || data), line_user_id: lineUserId };
         localStorage.setItem("user", JSON.stringify(updatedUser));
         setUser(updatedUser);
-        setForm(prev => ({
-          ...prev,
-          picture_url: data.user.picture_url || prev.picture_url
-        }));
+        if (data.user?.picture_url) {
+          setForm((prev) => ({ ...prev, picture_url: data.user.picture_url }));
+        }
 
-        // ลบ query param ออกจาก URL โดยไม่ reload
-        window.history.replaceState({}, "", "/profile");
+        window.history.replaceState({}, "", window.location.pathname);
         return true;
       } else {
-        console.error("[LINE Link] API rejected request", {
-          status: response.status,
-          message: data.message,
-        });
         setError(data.message || "เชื่อมต่อ LINE ไม่สำเร็จ");
         return false;
       }
     } catch (err) {
-      console.error("Link Line API Error:", err);
+      console.error("[LINE Link] Exception:", err);
       setError("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
       return false;
     }
@@ -112,7 +162,7 @@ const ProfilePage = () => {
 
     const liffId = LIFF_ID?.trim();
     if (!isValidLiffId(liffId)) {
-      setError("ยังไม่ได้ตั้งค่า VITE_LINE_LIFF_ID");
+      setError("ยังไม่ได้ตั้งค่า VITE_LINE_LIFF_ID ในระบบ");
       return false;
     }
 
@@ -121,7 +171,7 @@ const ProfilePage = () => {
       .then(() => true)
       .catch((err) => {
         console.error("LIFF Init Error:", err);
-        setError("เกิดข้อผิดพลาดในการเริ่มต้น LINE กรุณาลองใหม่อีกครั้ง");
+        setError("เกิดข้อผิดพลาดในการเริ่มต้นใช้งาน LINE");
         return false;
       })
       .finally(() => {
@@ -131,91 +181,66 @@ const ProfilePage = () => {
     return liffInitPromiseRef.current;
   };
 
-  // ✅ Main Effect: init LIFF และตรวจว่า LINE redirect กลับมาหรือเปล่า
+  // Auto-Check LINE Binding On Return
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
     const initAndCheck = async () => {
       try {
         const initialized = await ensureLiffInitialized();
-        if (!initialized) {
-          return;
-        }
+        if (!initialized) return;
 
-        // ตรวจว่า LINE เพิ่ง redirect กลับมาหรือเปล่า (มี access token แล้ว)
         if (liff.isLoggedIn() && !user?.line_user_id) {
           setIsLinking(true);
-          setSuccess("กำลังเชื่อมต่อ LINE...");
-          try {
-            console.log("[LINE Link] auto-return detected", { apiUrl });
-            const profile = await liff.getProfile();
-            console.log("LINE Profile:", profile);
-            console.log("LINE User ID:", profile.userId);
+          setSuccess("กำลังส่งข้อมูลยืนยันตัวตน LINE...");
+
+          const profile = await liff.getProfile();
+          if (profile?.userId) {
             await linkLineToBackend(profile.userId, profile.pictureUrl || null);
-          } finally {
-            setIsLinking(false);
           }
         }
       } catch (err) {
-        console.error("LIFF Init Error:", err);
+        console.error("Auto-link LINE Error:", err);
+      } finally {
+        setIsLinking(false);
       }
     };
 
-    initAndCheck();
+    if (user && !isLoadingProfile) {
+      initAndCheck();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoadingProfile]);
 
+  // กดปุ่มเชื่อมต่อ LINE
   const handleConnectLine = async () => {
-    console.log("BUTTON CLICKED");
     setError("");
     setSuccess("");
     setIsLinking(true);
 
     try {
-      console.log("START LIFF INIT");
-
       const initialized = await ensureLiffInitialized();
-      if (!initialized) {
-        setIsLinking(false);
-        return;
-      }
-
-      console.log("LIFF INIT SUCCESS");
-      console.log("LOGIN STATUS =", liff.isLoggedIn());
+      if (!initialized) return;
 
       if (!liff.isLoggedIn()) {
-        console.log("CALLING LINE LOGIN");
-        liff.login({
-          redirectUri: window.location.href,
-        });
+        // ใช้ URL คงที่ของหน้าโปรไฟล์ เพื่อให้ตรงกับ Endpoint URL ที่ตั้งไว้ใน LINE Developers
+        liff.login({ redirectUri: getLiffRedirectUri() });
         return;
       }
 
-      console.log("GETTING PROFILE");
-
       const profile = await liff.getProfile();
-      console.log("PROFILE =", profile);
-      console.log("LINE Profile:", profile);
-      console.log("LINE User ID:", profile.userId);
-
-      if (!profile.userId) {
+      if (profile?.userId) {
+        await linkLineToBackend(profile.userId, profile.pictureUrl || null);
+      } else {
         throw new Error("ไม่พบ LINE User ID");
       }
-
-      console.log("SENDING TO BACKEND");
-      console.log("[LINE Link] button clicked while logged in", { apiUrl });
-      await linkLineToBackend(profile.userId, profile.pictureUrl || null);
-    } catch (err) {
-      console.error("LIFF Error:", err);
-      console.error("ERROR =", err);
-      setError("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE กรุณาลองใหม่อีกครั้ง");
+    } catch (err: any) {
+      console.error("LIFF Action Error:", err);
+      setError(err?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
+    } finally {
       setIsLinking(false);
     }
   };
 
+  // บันทึกโปรไฟล์
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -228,7 +253,7 @@ const ProfilePage = () => {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
@@ -236,11 +261,11 @@ const ProfilePage = () => {
       const data = await response.json();
       if (response.ok) {
         setSuccess("อัปเดตข้อมูลโปรไฟล์สำเร็จ");
-        const updatedUser = { ...user, ...data.user };
+        const updatedUser = { ...user, ...(data.user || form) };
         localStorage.setItem("user", JSON.stringify(updatedUser));
         setUser(updatedUser);
       } else if (response.status === 401 || response.status === 403) {
-        setError(data.message || "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
+        setError("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
         logout("/login");
       } else {
         setError(data.message || "เกิดข้อผิดพลาดในการอัปเดตโปรไฟล์");
@@ -252,10 +277,19 @@ const ProfilePage = () => {
     }
   };
 
+  if (isLoadingProfile) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-muted-foreground gap-2">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-sm">กำลังโหลดข้อมูลโปรไฟล์...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -264,23 +298,24 @@ const ProfilePage = () => {
           </h1>
         </div>
 
-        <Card>
-          <CardHeader className="pb-4 border-b">
+        <Card className="shadow-sm border-border">
+          <CardHeader className="pb-4 border-b border-border">
             <div className="flex items-center gap-4">
-              <div className="relative group">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden border border-border">
+              <div className="relative group shrink-0">
+                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden border-2 border-primary/20 shadow-inner">
                   {form.picture_url ? (
                     <img src={form.picture_url} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-8 h-8 text-primary" />
+                    <User className="w-10 h-10 text-primary" />
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-primary text-white p-1 rounded-full shadow-lg hover:bg-primary/90 transition-colors"
+                  className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-1.5 rounded-full shadow-md hover:scale-105 active:scale-95 transition-all"
+                  title="เปลี่ยนรูปโปรไฟล์"
                 >
-                  <Camera className="w-3 h-3" />
+                  <Camera className="w-3.5 h-3.5" />
                 </button>
                 <input
                   type="file"
@@ -290,63 +325,73 @@ const ProfilePage = () => {
                   onChange={handleFileChange}
                 />
               </div>
-              <div>
-                <CardTitle className="text-xl">{user?.username}</CardTitle>
-                <p className="text-sm text-muted-foreground">สมาชิก Bus Joy</p>
+
+              <div className="space-y-1">
+                <CardTitle className="text-xl font-bold">{user?.username || "ผู้ใช้งาน"}</CardTitle>
+                <p className="text-xs text-muted-foreground">สมาชิก Bus Joy</p>
                 {user?.line_user_id ? (
-                  <span className="text-[10px] bg-success/10 text-success px-2 py-0.5 rounded-full font-bold flex items-center gap-1 mt-1 w-fit">
-                    <MessageCircle className="w-2 h-2" /> เชื่อมต่อ LINE แล้ว
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 w-fit border border-emerald-500/20">
+                    <MessageCircle className="w-3 h-3" /> เชื่อมต่อ LINE แล้ว
                   </span>
                 ) : (
-                  <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-bold flex items-center gap-1 mt-1 w-fit">
+                  <span className="text-[10px] bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1 w-fit">
                     ยังไม่ได้เชื่อมต่อ LINE
                   </span>
                 )}
               </div>
             </div>
           </CardHeader>
+
           <CardContent className="pt-6">
             <form onSubmit={handleSave} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">ชื่อ-นามสกุล</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="full_name" className="text-xs font-semibold">ชื่อ-นามสกุล</Label>
                   <Input
                     id="full_name"
                     value={form.full_name}
                     onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    placeholder="นาย สมชาย ใจดี"
+                    className="rounded-xl"
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">อีเมล</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-xs font-semibold">อีเมล</Label>
                   <Input
                     id="email"
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="example@email.com"
+                    className="rounded-xl"
                     required
                   />
                 </div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="age">อายุ</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="age" className="text-xs font-semibold">อายุ (ปี)</Label>
                   <Input
                     id="age"
                     type="number"
-                    value={form.age}
+                    min={1}
+                    max={120}
+                    value={form.age || ""}
                     onChange={(e) => setForm({ ...form, age: Number(e.target.value) })}
+                    placeholder="25"
+                    className="rounded-xl"
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gender">เพศ</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="gender" className="text-xs font-semibold">เพศ</Label>
                   <Select
                     value={form.gender}
                     onValueChange={(value) => setForm({ ...form, gender: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="เลือกเพศ" />
                     </SelectTrigger>
                     <SelectContent>
@@ -358,42 +403,58 @@ const ProfilePage = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">ที่อยู่</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="address" className="text-xs font-semibold">ที่อยู่</Label>
                 <Input
                   id="address"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="บ้านเลขที่, ถนน, ตำบล/แขวง..."
+                  className="rounded-xl"
                   required
                 />
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              {success && <p className="text-sm text-success font-medium">{success}</p>}
+              {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
+              {success && <p className="text-xs text-emerald-600 font-semibold">{success}</p>}
 
               {!user?.line_user_id && (
                 <div className="pt-2">
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full border-[#06C755] text-[#06C755] hover:bg-[#06C755]/10"
+                    className="w-full border-[#06C755] text-[#06C755] hover:bg-[#06C755]/10 font-bold rounded-xl py-5"
                     onClick={handleConnectLine}
                     disabled={isLinking}
                   >
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    {isLinking ? "กำลังเชื่อมต่อ..." : "เชื่อมต่อกับ LINE เพื่อรับการแจ้งเตือน"}
+                    {isLinking ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                    )}
+                    {isLinking ? "กำลังเชื่อมต่อ..." : "เชื่อมต่อกับ LINE เพื่อรับแจ้งเตือน"}
                   </Button>
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <Button type="submit" className="flex-1" disabled={isSaving}>
-                  {isSaving ? "กำลังบันทึก..." : <><Save className="w-4 h-4 mr-2" /> บันทึกการเปลี่ยนแปลง</>}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
+                <Button type="submit" className="flex-1 font-bold rounded-xl py-5" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      บันทึกการเปลี่ยนแปลง
+                    </>
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="text-destructive hover:bg-destructive/10"
+                  className="text-destructive hover:bg-destructive/10 border-destructive/30 font-bold rounded-xl py-5"
                   onClick={() => logout("/login")}
                 >
                   <LogOut className="w-4 h-4 mr-2" /> ออกจากระบบ

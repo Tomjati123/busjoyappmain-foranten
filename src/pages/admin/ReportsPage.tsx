@@ -6,6 +6,7 @@ import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle } from "lucid
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getApiBaseUrl } from "@/lib/api";
 
 type Stats = {
   monthlyStats: { month: string; revenue: string | number; bookings: string | number }[];
@@ -15,6 +16,7 @@ type Stats = {
 const COLORS = ["hsl(217,91%,60%)", "hsl(224,76%,40%)", "hsl(142,72%,37%)", "hsl(38,92%,50%)", "hsl(215,16%,47%)"];
 
 const ReportsPage = () => {
+  const apiUrl = getApiBaseUrl();
   const [reportType, setReportType] = useState("revenue");
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +26,7 @@ const ReportsPage = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/admin/stats", {
+        const res = await fetch(`${apiUrl}/api/admin/stats`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
