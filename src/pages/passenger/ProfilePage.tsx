@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+﻿import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { User, ArrowLeft, Save, LogOut, MessageCircle, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ const getLiffRedirectUri = () => {
 
 const ProfilePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liffInitPromiseRef = useRef<Promise<boolean> | null>(null);
 
@@ -92,6 +93,38 @@ const ProfilePage = () => {
     fetchLatestProfile();
   }, [navigate]);
 
+  // รับ callback จาก LINE OAuth2 (link mode)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const lineLinked = params.get("line_linked");
+    const lineError  = params.get("line_error");
+
+    if (lineLinked === "success") {
+      setSuccess("✅ เชื่อมต่อบัญชี LINE เรียบร้อยแล้ว");
+      // รีโหลดข้อมูล profile ล่าสุด
+      const token = localStorage.getItem("token");
+      if (token) {
+        fetch(`${apiUrl}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => r.json())
+          .then((data) => {
+            const p = data.user || data;
+            setUser(p);
+            localStorage.setItem("user", JSON.stringify(p));
+          })
+          .catch(() => {});
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (lineError) {
+      const msgs: Record<string, string> = {
+        already_linked: "LINE ID นี้ถูกผูกกับบัญชีอื่นแล้ว",
+        token_invalid:  "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
+        no_token:       "ไม่พบ Token กรุณาเข้าสู่ระบบใหม่",
+      };
+      setError(msgs[lineError] || "เชื่อมต่อ LINE ไม่สำเร็จ");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [location.search]);
+
   // Handle เปลี่ยนไฟล์รูป
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,7 +142,7 @@ const ProfilePage = () => {
     }
   };
 
-  // 🌟 ฟังก์ชันส่งข้อมูล LINE ID ไปยืนยันตัวตนที่ Backend
+  // 🌟 ฟังก์ชันส่งข้อมูล LINE ID ไปยืนยันตัวตนที่ Backend (ใช้กับ LIFF path)
   const linkLineToBackend = async (lineUserId: string, pictureUrl: string | null = null) => {
     try {
       const token = localStorage.getItem("token");
@@ -181,8 +214,10 @@ const ProfilePage = () => {
     return liffInitPromiseRef.current;
   };
 
-  // Auto-Check LINE Binding On Return
+  // Auto-Check LINE Binding On Return (LIFF only)
   useEffect(() => {
+    if (!isValidLiffId(LIFF_ID?.trim())) return; // ข้ามถ้าไม่มี LIFF
+
     const initAndCheck = async () => {
       try {
         const initialized = await ensureLiffInitialized();
@@ -211,29 +246,43 @@ const ProfilePage = () => {
   }, [isLoadingProfile]);
 
   // กดปุ่มเชื่อมต่อ LINE
+  // ถ้ามี LIFF_ID → ใช้ LIFF (เดิม)
+  // ถ้าไม่มี       → ใช้ LINE OAuth2 redirect ผ่าน Backend (แปลงจาก PHP LineLogin)
   const handleConnectLine = async () => {
     setError("");
     setSuccess("");
     setIsLinking(true);
 
     try {
-      const initialized = await ensureLiffInitialized();
-      if (!initialized) return;
+      if (isValidLiffId(LIFF_ID?.trim())) {
+        // ── LIFF path ─────────────────────────────────────────────────────
+        const initialized = await ensureLiffInitialized();
+        if (!initialized) return;
 
-      if (!liff.isLoggedIn()) {
-        // ใช้ URL คงที่ของหน้าโปรไฟล์ เพื่อให้ตรงกับ Endpoint URL ที่ตั้งไว้ใน LINE Developers
-        liff.login({ redirectUri: getLiffRedirectUri() });
-        return;
-      }
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: getLiffRedirectUri() });
+          return;
+        }
 
-      const profile = await liff.getProfile();
-      if (profile?.userId) {
-        await linkLineToBackend(profile.userId, profile.pictureUrl || null);
+        const profile = await liff.getProfile();
+        if (profile?.userId) {
+          await linkLineToBackend(profile.userId, profile.pictureUrl || null);
+        } else {
+          throw new Error("ไม่พบ LINE User ID");
+        }
       } else {
-        throw new Error("ไม่พบ LINE User ID");
+        // ── LINE OAuth2 path (แปลงจาก PHP LineLogin class) ──────────────
+        // ส่ง JWT token ไปด้วยใน query เพื่อให้ Backend รู้ว่าเชื่อม LINE กับ user ไหน
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setError("ไม่พบ Token กรุณาเข้าสู่ระบบใหม่");
+          return;
+        }
+        window.location.href = `${apiUrl}/api/auth/line?mode=link&token=${encodeURIComponent(token)}`;
+        return; // browser จะ redirect ออก
       }
     } catch (err: any) {
-      console.error("LIFF Action Error:", err);
+      console.error("LINE Connect Error:", err);
       setError(err?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
     } finally {
       setIsLinking(false);

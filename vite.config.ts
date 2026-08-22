@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
       // 🟢 แก้จาก 5000 เป็น 8080 (ให้ตรงกับพอร์ตของ Vite server)
       port: 8080,
-      clientPort: 8080,
+      // Ngrok เปิด public ผ่าน HTTPS/WSS ที่ port 443
+      clientPort: 443,
     },
     allowedHosts: [
       "bootleg-duration-helpful.ngrok-free.dev",

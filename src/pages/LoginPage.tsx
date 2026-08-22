@@ -6,13 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getApiBaseUrl } from "@/lib/api";
 import useAuth from "@/hooks/useAuth";
-import liff from "@line/liff";
-
-declare global {
-  interface Window {
-    liff?: any;
-  }
-}
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -24,18 +17,8 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLineLoading, setIsLineLoading] = useState(false);
   
   const apiUrl = getApiBaseUrl() || "http://localhost:5000";
-  const LIFF_ID = import.meta.env.VITE_LINE_LIFF_ID;
-
-  const isValidLiffId = (value?: string) => {
-    if (!value) return false;
-    const trimmed = value.trim();
-    if (!trimmed) return false;
-    if (trimmed === "replace_with_your_liff_id") return false;
-    return true;
-  };
 
   const roleFromQuery = new URLSearchParams(location.search).get("role");
   const isStaffLogin = roleFromQuery === "staff";
@@ -46,55 +29,6 @@ const LoginPage = () => {
       setUsername(rememberedEmail);
     }
   }, []);
-
-  const handleLineLogin = async () => {
-    try {
-      setIsLineLoading(true);
-      setError("");
-
-      if (!isValidLiffId(LIFF_ID)) {
-        setError("ยังไม่ได้ตั้งค่า VITE_LINE_LIFF_ID");
-        return;
-      }
-
-      await liff.init({ liffId: LIFF_ID.trim() });
-
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
-      }
-
-      const idToken = liff.getIDToken();
-      if (!idToken) {
-        setError("ไม่พบ LINE ID token");
-        return;
-      }
-
-      const response = await fetch(`${apiUrl}/api/auth/line-login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          idToken,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "เข้าสู่ระบบ LINE ไม่สำเร็จ");
-        return;
-      }
-
-      login(data);
-    } catch (err) {
-      console.error(err);
-      setError("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
-    } finally {
-      setIsLineLoading(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,28 +156,6 @@ const LoginPage = () => {
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
               {isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
             </Button>
-
-            {!isStaffLogin && (
-              <>
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-card text-muted-foreground">หรือ</span>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white border-none"
-                  size="lg"
-                  onClick={handleLineLogin}
-                  disabled={isLineLoading}
-                >
-                  {isLineLoading ? "กำลังเชื่อมต่อ..." : "เข้าสู่ระบบด้วย LINE"}
-                </Button>
-              </>
-            )}
 
             <p className="text-center text-sm text-muted-foreground">
               ยังไม่มีบัญชี?{" "}

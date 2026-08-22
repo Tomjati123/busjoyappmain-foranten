@@ -50,6 +50,7 @@ const SeatSelectionPage = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellationSeats, setCancellationSeats] = useState<string[]>([]);
+  const [isTripUnavailable, setIsTripUnavailable] = useState(false);
 
   // 🔒 ดึงข้อมูลผู้ใช้และเตรียม Token สำหรับแนบ Header API
   const currentUser = getUser();
@@ -92,6 +93,12 @@ const SeatSelectionPage = () => {
         fetch(`${apiUrl}/api/bus/${tripId}/seats`, { headers: getAuthHeaders() }),
       ]);
 
+      if (tripResponse.status === 404 || seatsResponse.status === 404) {
+        setIsTripUnavailable(true);
+        setError("ไม่พบเที่ยวรถนี้ในระบบ กรุณากลับไปเลือกเที่ยวรถใหม่");
+        return;
+      }
+
       if (tripResponse.status === 401 || seatsResponse.status === 401) {
         setError("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
         return;
@@ -130,7 +137,7 @@ const SeatSelectionPage = () => {
 
   // ⏱️ Real-time Sync: Polling ตรวจสอบสถานะที่นั่งล่าสุดจากฐานข้อมูลทุก 3 วินาที
   useEffect(() => {
-    if (!tripId) return;
+    if (!tripId || isTripUnavailable) return;
     
     loadTripSeats(); // โหลดทันทีครั้งแรก
     
@@ -139,7 +146,7 @@ const SeatSelectionPage = () => {
     }, 3000);
 
     return () => clearInterval(intervalId); // Clear interval เมื่อเปลี่ยนหน้า
-  }, [tripId, loadTripSeats]);
+  }, [tripId, loadTripSeats, isTripUnavailable]);
 
   // 🔒 ฟังก์ชันคลิกเลือกที่นั่ง ตรวจสอบสถานะจริงวินาทีต่อวินาทีก่อนเปลี่ยน UI
   const toggleSeat = async (id: string) => {
@@ -338,6 +345,19 @@ const SeatSelectionPage = () => {
     );
   }
 
+  if (isTripUnavailable) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border">
+          <CardContent className="p-6 text-center space-y-4">
+            <p className="text-foreground font-medium">ไม่พบเที่ยวรถนี้ในระบบ</p>
+            <Button onClick={() => navigate("/staff/seats")}>กลับไปจัดการที่นั่ง</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const travelDateFormatted = () => {
     const rawDate = trip?.travel_date || trip?.travelDate;
     if (!rawDate) return "-";
@@ -363,7 +383,9 @@ const SeatSelectionPage = () => {
             <Button variant="ghost" size="sm" onClick={() => navigate("/passenger/search")}>
               <ArrowLeft className="w-4 h-4 mr-1" /> กลับ
             </Button>
-            <h1 className="font-bold text-foreground ml-4">เลือกที่นั่ง (Real-time Sync)</h1>
+            <h1 className="font-bold text-foreground ml-4">
+              {isStaff ? "จัดการที่นั่งเที่ยวรถ" : "เลือกที่นั่ง (Real-time Sync)"}
+            </h1>
           </div>
           <Button variant="outline" size="sm" onClick={() => loadTripSeats(false)} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : ""}`} />
@@ -391,7 +413,8 @@ const SeatSelectionPage = () => {
                     <span className="w-3 h-3 rounded bg-red-100 border border-red-400" /> จองแล้ว
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-primary border border-primary" /> เลือกแล้ว
+                    <span className="w-3 h-3 rounded bg-primary border border-primary" />
+                    {isStaff ? "เลือกเพื่อคืนที่นั่ง" : "เลือกแล้ว"}
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded bg-pink-50 border border-pink-300" /> เฉพาะผู้หญิง
@@ -478,6 +501,12 @@ const SeatSelectionPage = () => {
                 {error && <p className="text-xs font-medium text-destructive bg-destructive/5 p-2.5 rounded-lg">{error}</p>}
                 {successMessage && <p className="text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg">{successMessage}</p>}
 
+                {isStaff && (
+                  <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                    คลิกที่นั่งสีแดงเพื่อเลือกคืนสิทธิ์ จากนั้นกดยืนยันการคืนที่นั่ง
+                  </p>
+                )}
+
                 <div className="border-t border-border pt-3">
                   <p className="text-sm font-medium text-foreground mb-2">
                     ที่นั่งที่เลือก ({isStaff ? selectedCancellationSeats.length : selectedSeats.length})
@@ -537,7 +566,7 @@ const SeatSelectionPage = () => {
                         disabled={selectedCancellationSeats.length === 0 || isLoading || isSaving}
                         onClick={releaseSeats}
                       >
-                        {isSaving ? "กำลังยกเลิกที่นั่ง..." : "ยกเลิกการจองที่นั่ง"}
+                        {isSaving ? "กำลังคืนที่นั่ง..." : "ยืนยันการคืนที่นั่ง"}
                       </Button>
                       <Button
                         variant="outline"

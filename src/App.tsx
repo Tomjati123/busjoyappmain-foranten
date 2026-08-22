@@ -28,6 +28,7 @@ import StaffQRScanPage from "./pages/staff/StaffQRScanPage";
 import StaffSeatManagementPage from "./pages/staff/StaffSeatManagementPage";
 import NotFound from "./pages/NotFound";
 import NotificationsPage from "./pages/passenger/NotificationsPage";
+import LineCallbackPage from "./pages/LineCallbackPage";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,8 @@ const App = () => (
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/register" element={<RegisterPage />} />
+          {/* LINE OAuth2 Callback — ไม่ต้อง login ก่อน */}
+          <Route path="/line-callback" element={<LineCallbackPage />} />
           {/* Passenger */}
           <Route path="/passenger" element={<RequireRole allow={["passenger"]}><PassengerDashboard /></RequireRole>} />
           <Route path="/passenger/search" element={<RequireRole allow={["passenger"]}><SearchPage /></RequireRole>} />

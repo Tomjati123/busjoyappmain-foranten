@@ -89,14 +89,6 @@ const StaffQRScanPage = () => {
     return () => stopCamera();
   }, [navigate]);
 
-  const simulateScan = (result: ScanResult) => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setScanResult(result);
-    }, 1000);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b border-border sticky top-0 z-50">
@@ -151,11 +143,11 @@ const StaffQRScanPage = () => {
               </p>
             </div>
             <canvas ref={canvasRef} className="hidden" />
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => simulateScan("valid")}>
+            <div className="hidden">
+              <Button className="flex-1" onClick={() => {}}>
                 จำลองสแกน (ถูกต้อง)
               </Button>
-              <Button variant="outline" className="flex-1" onClick={() => simulateScan("invalid")}>
+              <Button variant="outline" className="flex-1" onClick={() => {}}>
                 จำลองสแกน (ไม่ถูกต้อง)
               </Button>
             </div>
