@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ticket, DollarSign, Armchair, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -18,9 +19,11 @@ const AdminDashboard = () => {
   const apiUrl = getApiBaseUrl();
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(`${apiUrl}/api/admin/stats`, {
@@ -30,16 +33,18 @@ const AdminDashboard = () => {
         if (res.ok) {
           setStats(data);
         } else {
-          console.error("Error fetching stats:", data.message);
+          setError(data.message || "โหลดข้อมูลแดชบอร์ดไม่สำเร็จ");
         }
-      } catch (err) {
-        console.error("Failed to load stats:", err);
+      } catch {
+        setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
       } finally {
         setIsLoading(false);
       }
-    };
+  }, [apiUrl]);
+
+  useEffect(() => {
     fetchStats();
-  }, []);
+  }, [fetchStats]);
 
   const cards = stats ? [
     { label: "การจองวันนี้", value: stats.bookingsToday.toString(), icon: <Ticket className="w-5 h-5" />, color: "text-primary", bg: "bg-primary/10" },
@@ -53,6 +58,13 @@ const AdminDashboard = () => {
       <div className="p-6">
         <h1 className="text-2xl font-bold text-foreground mb-6">แดชบอร์ดผู้ดูแลระบบ</h1>
 
+        {error && !isLoading && (
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchStats}>ลองใหม่</Button>
+          </div>
+        )}
+
         {/* Overview Cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {isLoading ? (
@@ -63,7 +75,7 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             ))
-          ) : (
+          ) : stats ? (
             cards.map((s, i) => (
               <Card key={i}>
                 <CardContent className="p-4 flex items-center gap-4">
@@ -77,6 +89,10 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             ))
+          ) : (
+            <div className="sm:col-span-2 lg:col-span-4 rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+              ยังไม่มีข้อมูลแดชบอร์ด
+            </div>
           )}
         </div>
 

@@ -267,7 +267,7 @@ const ConfirmationPage = () => {
           </Button>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="rounded-xl text-emerald-600 border-emerald-200 hover:bg-emerald-50" disabled>
+            <Button variant="outline" className="rounded-xl text-emerald-600 border-emerald-200" disabled>
               <MessageCircle className="w-4 h-4 mr-1.5" /> ส่งไป LINE
             </Button>
             <Button variant="outline" className="rounded-xl" disabled>

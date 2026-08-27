@@ -44,12 +44,15 @@ const RegisterPage = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        // 📍 [แก้ไข 2] ส่ง Payload ตามที่ authController.js รับ (fullName, email, password, phone)
+        // ส่งข้อมูลโปรไฟล์เพิ่มเติมให้ backend เก็บพร้อมบัญชีผู้ใช้
         body: JSON.stringify({
           fullName,
           email,
           password,
           phone,
+          gender: gender || null,
+          address: address || null,
+          age: age ? Number(age) : null,
         }),
       });
 

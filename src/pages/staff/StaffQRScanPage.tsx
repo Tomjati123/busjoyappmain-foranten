@@ -1,20 +1,39 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
-import { QrCode, CheckCircle, XCircle, User, Bus, MapPin, Calendar, Clock, ArrowLeft, LogOut, ScanLine, Ticket, Shield } from "lucide-react";
+import { QrCode, CheckCircle, XCircle, User, MapPin, Calendar, ArrowLeft, LogOut, ScanLine, Ticket, Shield, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getUser, logout } from "@/hooks/useAuth";
+import { getApiBaseUrl } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type ScanResult = null | "valid" | "invalid";
+type ScanMode = "boarding" | "alighting";
+type Booking = {
+  id: number;
+  booking_code?: string;
+  status?: string;
+  passenger_name?: string;
+  origin?: string;
+  destination?: string;
+  travel_date?: string;
+  seat_number?: string;
+};
 
 const StaffQRScanPage = () => {
   const navigate = useNavigate();
+  const apiUrl = getApiBaseUrl() || "http://localhost:5000";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanFrameRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const startCameraRef = useRef<(() => Promise<void>) | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult>(null);
+  const [scanMode, setScanMode] = useState<ScanMode>("boarding");
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [scannedCode, setScannedCode] = useState("");
+  const [scanError, setScanError] = useState("");
+  const [isReturningSeat, setIsReturningSeat] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [cameraSupported, setCameraSupported] = useState(true);
@@ -28,6 +47,47 @@ const StaffQRScanPage = () => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
+    }
+  };
+
+  const handleDecodedCode = async (rawCode: string) => {
+    const code = rawCode.trim();
+    stopCamera();
+    setScannedCode(code);
+    setBooking(null);
+    setScanError("");
+    try {
+      const response = await fetch(`${apiUrl}/api/bookings/${encodeURIComponent(code)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "ไม่พบข้อมูลตั๋วในระบบ");
+      setBooking(data);
+      const activeStatuses = ["paid", "confirmed", "reserved", "booked", "ยืนยันแล้ว"];
+      const isActive = activeStatuses.includes(String(data.status || "").toLowerCase());
+      setScanResult(isActive ? "valid" : "invalid");
+      if (!isActive) setScanError("ตั๋วใบนี้ถูกใช้หรือคืนที่นั่งไปแล้ว");
+    } catch (error: any) {
+      setScanResult("invalid");
+      setScanError(error.message || "ไม่สามารถตรวจสอบตั๋วกับเซิร์ฟเวอร์ได้");
+    }
+  };
+
+  const returnSeat = async () => {
+    if (!booking?.id) return;
+    setIsReturningSeat(true);
+    setScanError("");
+    try {
+      const response = await fetch(`${apiUrl}/api/bookings/${booking.id}/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "คืนที่นั่งไม่สำเร็จ");
+      setBooking((current) => current ? { ...current, status: "completed" } : current);
+      setScanError("คืนที่นั่งเรียบร้อยแล้ว");
+    } catch (error: any) {
+      setScanError(error.message || "ไม่สามารถคืนที่นั่งได้");
+    } finally {
+      setIsReturningSeat(false);
     }
   };
 
@@ -45,13 +105,23 @@ const StaffQRScanPage = () => {
       const code = jsQR(imageData.data, imageData.width, imageData.height);
 
       if (code?.data) {
-        setScanResult("valid");
-        setIsScanning(false);
+        void handleDecodedCode(code.data);
         return;
       }
     }
 
     scanFrameRef.current = window.requestAnimationFrame(scanFrame);
+  };
+
+  const scanNextTicket = async () => {
+    stopCamera();
+    setScanResult(null);
+    setBooking(null);
+    setScannedCode("");
+    setScanError("");
+    if (cameraSupported) {
+      await startCameraRef.current?.();
+    }
   };
 
   useEffect(() => {
@@ -85,8 +155,12 @@ const StaffQRScanPage = () => {
       }
     };
 
+    startCameraRef.current = startCamera;
     startCamera();
-    return () => stopCamera();
+    return () => {
+      startCameraRef.current = null;
+      stopCamera();
+    };
   }, [navigate]);
 
   return (
@@ -106,6 +180,15 @@ const StaffQRScanPage = () => {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
+          <Button variant={scanMode === "boarding" ? "default" : "ghost"} onClick={() => setScanMode("boarding")}>
+            สแกนขาขึ้น
+          </Button>
+          <Button variant={scanMode === "alighting" ? "default" : "ghost"} onClick={() => setScanMode("alighting")}>
+            สแกนขาลง
+          </Button>
+        </div>
+
         {/* Scanner Area */}
         <Card className="mb-6">
           <CardHeader>
@@ -182,11 +265,11 @@ const StaffQRScanPage = () => {
                 )}
               </div>
 
-              {scanResult === "valid" && (
+              {scanResult === "valid" && booking && (
                 <div className="space-y-2 text-sm border-t border-border pt-4">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground flex items-center gap-1"><Ticket className="w-3 h-3" />รหัสตั๋ว</span>
-                    <span className="font-medium text-foreground">BK-2569031501</span>
+                    <span className="font-medium text-foreground">{booking.booking_code || scannedCode}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground flex items-center gap-1"><User className="w-3 h-3" />ผู้โดยสาร</span>
@@ -202,12 +285,28 @@ const StaffQRScanPage = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">ที่นั่ง</span>
-                    <span className="font-medium text-foreground">A1, A2</span>
+                    <span className="font-medium text-foreground">{booking.seat_number || "-"}</span>
                   </div>
+                  {scanMode === "alighting" ? (
+                    <Button className="w-full mt-4" variant="destructive" onClick={returnSeat} disabled={isReturningSeat}>
+                      {isReturningSeat ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-1" />}
+                      {isReturningSeat ? "กำลังคืนที่นั่ง..." : "คืนที่นั่ง"}
+                    </Button>
+                  ) : (
                   <Button className="w-full mt-4 bg-success hover:bg-success/90 text-success-foreground">
                     <CheckCircle className="w-4 h-4 mr-1" />ยืนยันขึ้นรถ
                   </Button>
+                  )}
+                  {scanError && <p className={`text-sm font-medium ${booking.status === "completed" ? "text-emerald-600" : "text-destructive"}`}>{scanError}</p>}
+                  {scanMode === "alighting" && booking.status === "completed" && (
+                    <Button type="button" variant="outline" className="w-full mt-2" onClick={scanNextTicket}>
+                      <ScanLine className="w-4 h-4 mr-1" />สแกนตั๋วใบถัดไป
+                    </Button>
+                  )}
                 </div>
+              )}
+              {scanResult === "invalid" && scanError && (
+                <p className="mt-4 text-sm text-destructive font-medium">{scanError}</p>
               )}
             </CardContent>
           </Card>

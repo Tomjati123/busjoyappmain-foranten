@@ -32,6 +32,7 @@ type Trip = {
   destination: string;
   travel_date?: string;
   travelDate?: string;
+  departure_date?: string;
   departure_time?: string;
   departureTime?: string;
   arrival_time?: string;
@@ -163,7 +164,7 @@ const SearchPage = () => {
       id: trip.id,
       origin: trip.origin,
       destination: trip.destination,
-      travel_date: trip.travel_date || trip.travelDate,
+      travel_date: trip.travel_date || trip.travelDate || trip.departure_date,
       departure_time: (trip.departure_time || trip.departureTime || "").substring(0, 5),
       arrival_time: (trip.arrival_time || trip.arrivalTime || "").substring(0, 5),
       bus_type: trip.bus_type || trip.busType || "ปกติ",
@@ -176,7 +177,7 @@ const SearchPage = () => {
 
   // จัดกลุ่มข้อมูลเที่ยวรถตามวันที่
   const groupedTrips = trips.reduce((acc, trip) => {
-    const rawDate = trip.travel_date || trip.travelDate;
+    const rawDate = trip.travel_date || trip.travelDate || trip.departure_date;
     if (!rawDate) return acc;
     const key = new Date(rawDate).toISOString().split("T")[0];
     if (!acc[key]) acc[key] = [];

@@ -56,14 +56,19 @@ const ProfilePage = () => {
     const fetchLatestProfile = async () => {
       const token = localStorage.getItem("token");
       if (!token) {
+        setIsLoadingProfile(false);
         navigate("/login");
         return;
       }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
       try {
         setIsLoadingProfile(true);
         const res = await fetch(`${apiUrl}/api/users/profile`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
 
         if (res.ok) {
@@ -85,7 +90,23 @@ const ProfilePage = () => {
         }
       } catch (err) {
         console.error("Failed to fetch profile:", err);
+        const cachedUser = getUser();
+        if (cachedUser) {
+          setUser(cachedUser);
+          setForm({
+            full_name: cachedUser.full_name || cachedUser.fullName || "",
+            email: cachedUser.email || "",
+            gender: cachedUser.gender || "male",
+            address: cachedUser.address || "",
+            age: cachedUser.age || 0,
+            picture_url: cachedUser.picture_url || cachedUser.pictureUrl || cachedUser.avatar || "",
+          });
+        }
+        setError(err instanceof DOMException && err.name === "AbortError"
+          ? "เซิร์ฟเวอร์ตอบสนองช้า จึงแสดงข้อมูลโปรไฟล์ล่าสุดที่บันทึกไว้"
+          : "ไม่สามารถโหลดข้อมูลล่าสุดได้ จึงแสดงข้อมูลโปรไฟล์ที่บันทึกไว้");
       } finally {
+        window.clearTimeout(timeoutId);
         setIsLoadingProfile(false);
       }
     };

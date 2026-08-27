@@ -380,7 +380,7 @@ const SeatSelectionPage = () => {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/passenger/search")}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(isStaff ? "/staff/seats" : "/passenger/search")}>
               <ArrowLeft className="w-4 h-4 mr-1" /> กลับ
             </Button>
             <h1 className="font-bold text-foreground ml-4">
@@ -413,7 +413,7 @@ const SeatSelectionPage = () => {
                     <span className="w-3 h-3 rounded bg-red-100 border border-red-400" /> จองแล้ว
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-primary border border-primary" />
+                    <span className={`w-3 h-3 rounded border ${isStaff ? "bg-destructive border-destructive" : "bg-primary border-primary"}`} />
                     {isStaff ? "เลือกเพื่อคืนที่นั่ง" : "เลือกแล้ว"}
                   </span>
                   <span className="flex items-center gap-1">
