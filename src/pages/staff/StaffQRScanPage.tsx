@@ -293,7 +293,11 @@ const StaffQRScanPage = () => {
                       {isReturningSeat ? "กำลังคืนที่นั่ง..." : "คืนที่นั่ง"}
                     </Button>
                   ) : (
-                  <Button className="w-full mt-4 bg-success hover:bg-success/90 text-success-foreground">
+                  <Button
+                    className="w-full mt-4 bg-success hover:bg-success/90 text-success-foreground"
+                    type="button"
+                    onClick={scanNextTicket}
+                  >
                     <CheckCircle className="w-4 h-4 mr-1" />ยืนยันขึ้นรถ
                   </Button>
                   )}

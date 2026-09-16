@@ -357,10 +357,10 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="passenger-shell min-h-screen p-4 md:p-8">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" className="rounded-xl text-blue-700 hover:bg-blue-100/70" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -368,11 +368,11 @@ const ProfilePage = () => {
           </h1>
         </div>
 
-        <Card className="shadow-sm border-border">
-          <CardHeader className="pb-4 border-b border-border">
+        <Card className="passenger-card overflow-hidden rounded-2xl shadow-lg shadow-blue-900/5">
+          <CardHeader className="border-b border-blue-100 bg-gradient-to-r from-blue-50/90 to-white pb-4">
             <div className="flex items-center gap-4">
               <div className="relative group shrink-0">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden border-2 border-primary/20 shadow-inner">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-blue-200 bg-gradient-to-br from-blue-100 to-indigo-100 shadow-inner">
                   {form.picture_url ? (
                     <img src={form.picture_url} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
@@ -508,7 +508,7 @@ const ProfilePage = () => {
               )}
 
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
-                <Button type="submit" className="flex-1 font-bold rounded-xl py-5" disabled={isSaving}>
+                <Button type="submit" className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 py-5 font-bold shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700" disabled={isSaving}>
                   {isSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />

@@ -60,10 +60,27 @@
 
   body {
     @apply bg-background text-foreground font-sans;
-    font-family: 'Sarabun', sans-serif;
+    font-family: 'Sarabun', 'Noto Sans Thai', Tahoma, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Soft blue canvas used across the passenger experience. */
+  .passenger-shell {
+    background:
+      radial-gradient(circle at 8% 0%, hsl(214 100% 96% / 0.95), transparent 32rem),
+      linear-gradient(180deg, hsl(210 60% 98%), hsl(210 45% 96%));
+  }
+
+  .passenger-card {
+    @apply border-blue-100/80 bg-white/90 shadow-sm backdrop-blur-sm;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Sarabun', sans-serif;
+    font-family: 'Sarabun', 'Noto Sans Thai', Tahoma, sans-serif;
   }
 }

@@ -30,6 +30,14 @@ export default defineConfig(({ mode }) => ({
           "ngrok-skip-browser-warning": "true",
         },
       },
+      "/uploads": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+        secure: false,
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+        },
+      },
     },
     // 🟢 ส่ง header นี้ใน response ทุก request เพื่อข้าม ngrok interstitial
     headers: {

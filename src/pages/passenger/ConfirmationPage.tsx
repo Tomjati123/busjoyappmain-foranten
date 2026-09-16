@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  CheckCircle, Download, MessageCircle, Mail,
+  CheckCircle, Download,
   MapPin, Calendar, Clock, Loader2, Home, AlertCircle, Ticket
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,33 @@ const ConfirmationPage = () => {
 
     loadBooking();
   }, [bookingCode, apiUrl]);
+
+  useEffect(() => {
+    if (!booking || !bookingCode || !ticketRef.current) return;
+    let cancelled = false;
+    const sendTicketImage = async () => {
+      try {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        if (cancelled || !ticketRef.current) return;
+        const canvas = await html2canvas(ticketRef.current, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+        });
+        const token = localStorage.getItem("token");
+        await fetch(`${apiUrl}/api/bookings/${encodeURIComponent(bookingCode)}/ticket-image`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ image: canvas.toDataURL("image/png") }),
+        });
+      } catch (error) {
+        console.error("Automatic LINE ticket image error:", error);
+      }
+    };
+    sendTicketImage();
+    return () => { cancelled = true; };
+  }, [booking, bookingCode, apiUrl]);
 
   if (loading) {
     return (
@@ -265,15 +292,6 @@ const ConfirmationPage = () => {
             <Ticket className="w-4 h-4" />
             ดูตั๋วทั้งหมดของฉัน
           </Button>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="rounded-xl text-emerald-600 border-emerald-200" disabled>
-              <MessageCircle className="w-4 h-4 mr-1.5" /> ส่งไป LINE
-            </Button>
-            <Button variant="outline" className="rounded-xl" disabled>
-              <Mail className="w-4 h-4 mr-1.5" /> ส่งไปอีเมล
-            </Button>
-          </div>
 
           <Button
             variant="ghost"

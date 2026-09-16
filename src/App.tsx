@@ -8,6 +8,7 @@ import { getDefaultPathForUser, getToken, getUser, getUserRole } from "@/hooks/u
 import type { AppRole } from "@/hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import PassengerDashboard from "./pages/passenger/PassengerDashboard";
 import SearchPage from "./pages/passenger/SearchPage";
 import SeatSelectionPage from "./pages/passenger/SeatSelectionPage";
@@ -64,6 +65,7 @@ const App = () => (
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           {/* LINE OAuth2 Callback — ไม่ต้อง login ก่อน */}
           <Route path="/line-callback" element={<LineCallbackPage />} />
           {/* Passenger */}

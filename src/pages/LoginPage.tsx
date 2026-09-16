@@ -148,7 +148,7 @@ const LoginPage = () => {
                 />
                 จำฉันไว้
               </label>
-              <a href="#" className="text-primary hover:underline">ลืมรหัสผ่าน?</a>
+              <Link to="/forgot-password" className="text-primary hover:underline">ลืมรหัสผ่าน?</Link>
             </div>
 
             {error && <p className="text-sm text-destructive font-medium">{error}</p>}

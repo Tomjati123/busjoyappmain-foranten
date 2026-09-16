@@ -130,12 +130,12 @@ const PassengerDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="passenger-shell min-h-screen">
       {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50">
+      <header className="sticky top-0 z-50 border-b border-blue-100/80 bg-white/85 shadow-sm backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/25">
               <Bus className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="font-bold text-foreground text-lg hidden sm:block">
@@ -146,14 +146,14 @@ const PassengerDashboard = () => {
           <nav className="flex items-center gap-1">
             <Link
               to="/passenger"
-              className="px-3 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg flex items-center"
+              className="flex items-center rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm"
             >
               <Search className="w-4 h-4 mr-1.5" />
               ค้นหาเส้นทาง
             </Link>
             <Link
               to="/passenger/tickets"
-              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg flex items-center"
+              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
             >
               <Ticket className="w-4 h-4 mr-1.5" />
               ตั๋วของฉัน
@@ -162,7 +162,7 @@ const PassengerDashboard = () => {
             {/* 🔔 ปุ่มแจ้งเตือน */}
             <Link
               to="/passenger/notifications"
-              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg flex items-center relative"
+              className="relative flex items-center rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
             >
               <Bell className="w-4 h-4 mr-1.5" />
               <span className="hidden md:inline">แจ้งเตือน</span>
@@ -177,7 +177,7 @@ const PassengerDashboard = () => {
           <div className="flex items-center gap-2">
             <Link
               to="/passenger/profile"
-              className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden border border-border"
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-blue-100 bg-blue-50 shadow-sm"
             >
               {(user as any)?.picture_url || (user as any)?.avatar ? (
                 <img
@@ -199,9 +199,9 @@ const PassengerDashboard = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-8">
         {/* Hero Search Card */}
-        <Card className="mb-8 border-0 bg-primary text-primary-foreground shadow-lg overflow-hidden">
+        <Card className="mb-8 overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-primary-foreground shadow-xl shadow-blue-900/15">
           <CardContent className="p-6 md:p-8">
             <h1 className="text-2xl md:text-3xl font-extrabold mb-2">ค้นหาเส้นทางของคุณ</h1>
             <p className="opacity-90 mb-6 text-xs md:text-sm">
@@ -327,7 +327,7 @@ const PassengerDashboard = () => {
                   return (
                     <Card
                       key={trip.id}
-                      className="hover:shadow-md transition-all cursor-pointer border-border/80 hover:border-primary/50"
+                      className="passenger-card cursor-pointer transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/10"
                       onClick={() => navigate(`/passenger/seats?tripId=${trip.id}`)}
                     >
                       <CardContent className="p-4 space-y-2">
@@ -388,7 +388,7 @@ const PassengerDashboard = () => {
                   const seat = booking.seat_number || booking.seatNumber || "-";
 
                   return (
-                    <Card key={booking.id} className="shadow-sm">
+                    <Card key={booking.id} className="passenger-card transition-shadow hover:shadow-md">
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="font-semibold text-foreground text-sm">
